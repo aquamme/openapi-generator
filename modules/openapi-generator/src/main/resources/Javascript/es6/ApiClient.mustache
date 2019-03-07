@@ -105,6 +105,9 @@ class ApiClient {
         if (param == undefined || param == null) {
             return '';
         }
+        if (typeof param == 'object') {
+            return JSON.stringify(param);
+        }
         if (param instanceof Date) {
             return param.toJSON();
         }
