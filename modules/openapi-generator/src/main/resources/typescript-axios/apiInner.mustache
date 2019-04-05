@@ -121,7 +121,12 @@ export const {{classname}}AxiosParamCreator = function (configuration?: Configur
                 localVarQueryParameter['{{baseName}}'] = ({{paramName}} as any).toISOString();
                 {{/isDate}}
                 {{^isDate}}
-                localVarQueryParameter['{{baseName}}'] = {{paramName}};
+                if (typeof {{paramName}} == 'object') {
+                    localVarQueryParameter['{{baseName}}'] = JSON.stringify({{paramName}});
+                }
+                else {
+                    localVarQueryParameter['{{baseName}}'] = {{paramName}};
+                }
                 {{/isDate}}
                 {{/isDateTime}}
             }
