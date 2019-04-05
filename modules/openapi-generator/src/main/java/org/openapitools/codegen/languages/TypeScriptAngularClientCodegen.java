@@ -22,20 +22,19 @@ import io.swagger.v3.parser.util.SchemaTypeUtil;
 import org.openapitools.codegen.*;
 import org.openapitools.codegen.utils.ModelUtils;
 import org.openapitools.codegen.utils.SemVer;
+import org.openapitools.codegen.utils.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.text.SimpleDateFormat;
 import java.util.*;
 
+import static org.apache.commons.lang3.StringUtils.capitalize;
 import static org.openapitools.codegen.utils.StringUtils.*;
 
 public class TypeScriptAngularClientCodegen extends AbstractTypeScriptClientCodegen {
     private static final Logger LOGGER = LoggerFactory.getLogger(TypeScriptAngularClientCodegen.class);
 
-    private static final SimpleDateFormat SNAPSHOT_SUFFIX_FORMAT = new SimpleDateFormat("yyyyMMddHHmm", Locale.ROOT);
-    private static final String X_DISCRIMINATOR_TYPE = "x-discriminator-value";
     private static String CLASS_NAME_SUFFIX_PATTERN = "^[a-zA-Z0-9]*$";
     private static String FILE_NAME_SUFFIX_PATTERN = "^[a-zA-Z0-9.-]*$";
 
@@ -210,9 +209,13 @@ public class TypeScriptAngularClientCodegen extends AbstractTypeScriptClientCode
             this.setNpmVersion(this.getVersionFromApi());
         }
 
-        if (additionalProperties.containsKey(SNAPSHOT)
-                && Boolean.valueOf(additionalProperties.get(SNAPSHOT).toString())) {
-            this.setNpmVersion(npmVersion + "-SNAPSHOT." + SNAPSHOT_SUFFIX_FORMAT.format(new Date()));
+        if (additionalProperties.containsKey(SNAPSHOT) && Boolean.valueOf(additionalProperties.get(SNAPSHOT).toString())) {
+            if (npmVersion.toUpperCase(Locale.ROOT).matches("^.*-SNAPSHOT$")) {
+                this.setNpmVersion(npmVersion + "." + SNAPSHOT_SUFFIX_FORMAT.format(new Date()));
+            }
+            else {
+                this.setNpmVersion(npmVersion + "-SNAPSHOT." + SNAPSHOT_SUFFIX_FORMAT.format(new Date()));
+            }
         }
         additionalProperties.put(NPM_VERSION, npmVersion);
 
@@ -447,9 +450,9 @@ public class TypeScriptAngularClientCodegen extends AbstractTypeScriptClientCode
     /**
      * Finds and returns a path parameter of an operation by its name
      *
-     * @param operation
-     * @param parameterName
-     * @return
+     * @param operation the operation
+     * @param parameterName the name of the parameter
+     * @return param
      */
     private CodegenParameter findPathParameterByName(CodegenOperation operation, String parameterName) {
         for (CodegenParameter param : operation.pathParams) {
@@ -499,7 +502,7 @@ public class TypeScriptAngularClientCodegen extends AbstractTypeScriptClientCode
                 HashMap<String, String> tsImport = new HashMap<>();
                 // TVG: This is used as class name in the import statements of the model file
                 tsImport.put("classname", im);
-                tsImport.put("filename", toModelFilename(removeModelSuffixIfNecessary(im)));
+                tsImport.put("filename", toModelFilename(removeModelPrefixSuffix(im)));
                 tsImports.add(tsImport);
             }
         }
@@ -511,7 +514,7 @@ public class TypeScriptAngularClientCodegen extends AbstractTypeScriptClientCode
         if (name.length() == 0) {
             return "DefaultService";
         }
-        return initialCaps(name) + serviceSuffix;
+        return camelize(name) + serviceSuffix;
     }
 
     @Override
@@ -566,6 +569,7 @@ public class TypeScriptAngularClientCodegen extends AbstractTypeScriptClientCode
         return toApiFilename(name);
     }
 
+    /*
     private String getModelnameFromModelFilename(String filename) {
         String name = filename.substring((modelPackage() + "/").length());
         // Remove the file suffix and add the class suffix.
@@ -576,6 +580,7 @@ public class TypeScriptAngularClientCodegen extends AbstractTypeScriptClientCode
         }
         return camelize(name) + modelSuffix;
     }
+    */
 
     @Override
     public String toModelName(String name) {
@@ -586,11 +591,21 @@ public class TypeScriptAngularClientCodegen extends AbstractTypeScriptClientCode
         return modelName + modelSuffix;
     }
 
-    private String removeModelSuffixIfNecessary(String name) {
-        if (modelSuffix.length() == 0 || !name.endsWith(modelSuffix)) {
-            return name;
+    public String removeModelPrefixSuffix(String name) {
+        String result = name;
+        if (modelSuffix.length() > 0 && result.endsWith(modelSuffix)) {
+            result = result.substring(0, result.length() - modelSuffix.length());
         }
-        return name.substring(0, name.length() - modelSuffix.length());
+        String prefix = capitalize(this.modelNamePrefix);
+        String suffix = capitalize(this.modelNameSuffix);
+        if (prefix.length() > 0 && result.startsWith(prefix)) {
+            result = result.substring(prefix.length());
+        }
+        if (suffix.length() > 0 && result.endsWith(suffix)) {
+            result = result.substring(0, result.length() - suffix.length());
+        }
+
+        return result;
     }
 
     /**
@@ -644,7 +659,7 @@ public class TypeScriptAngularClientCodegen extends AbstractTypeScriptClientCode
      * @return the transformed name
      */
     private String convertUsingFileNamingConvention(String originalName) {
-        String name = this.removeModelSuffixIfNecessary(originalName);
+        String name = this.removeModelPrefixSuffix(originalName);
         if ("kebab-case".equals(fileNaming)) {
             name = dashize(underscore(name));
         } else {
@@ -656,7 +671,7 @@ public class TypeScriptAngularClientCodegen extends AbstractTypeScriptClientCode
     /**
      * Returns version from OpenAPI info.
      *
-     * @return
+     * @return version
      */
     private String getVersionFromApi() {
         if (this.openAPI != null && this.openAPI.getInfo() != null) {

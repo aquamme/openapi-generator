@@ -29,8 +29,7 @@ import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.info.License;
 import io.swagger.v3.oas.models.media.Schema;
 import io.swagger.v3.oas.models.parameters.Parameter;
-import io.swagger.v3.oas.models.security.SecurityRequirement;
-import io.swagger.v3.oas.models.security.SecurityScheme;
+import io.swagger.v3.oas.models.security.*;
 import io.swagger.v3.oas.models.tags.Tag;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.ObjectUtils;
@@ -66,6 +65,11 @@ public class DefaultGenerator extends AbstractGenerator implements Generator {
     private String basePathWithoutHost;
     private String contextPath;
     private Map<String, String> generatorPropertyDefaults = new HashMap<>();
+
+    @Override
+    public boolean getEnableMinimalUpdate() {
+        return config.isEnableMinimalUpdate();
+    }
 
     @Override
     public Generator opts(ClientOptInput opts) {
@@ -152,7 +156,6 @@ public class DefaultGenerator extends AbstractGenerator implements Generator {
         generateModelDocumentation = GeneratorProperties.getProperty(CodegenConstants.MODEL_DOCS) != null ? Boolean.valueOf(GeneratorProperties.getProperty(CodegenConstants.MODEL_DOCS)) : getGeneratorPropertyDefaultSwitch(CodegenConstants.MODEL_DOCS, true);
         generateApiTests = GeneratorProperties.getProperty(CodegenConstants.API_TESTS) != null ? Boolean.valueOf(GeneratorProperties.getProperty(CodegenConstants.API_TESTS)) : getGeneratorPropertyDefaultSwitch(CodegenConstants.API_TESTS, true);
         generateApiDocumentation = GeneratorProperties.getProperty(CodegenConstants.API_DOCS) != null ? Boolean.valueOf(GeneratorProperties.getProperty(CodegenConstants.API_DOCS)) : getGeneratorPropertyDefaultSwitch(CodegenConstants.API_DOCS, true);
-
 
         // Additional properties added for tests to exclude references in project related files
         config.additionalProperties().put(CodegenConstants.GENERATE_API_TESTS, generateApiTests);
@@ -627,7 +630,6 @@ public class DefaultGenerator extends AbstractGenerator implements Generator {
                     }
                 }
 
-
                 if (generateApiDocumentation) {
                     // to generate api documentation files
                     for (String templateName : config.apiDocTemplateFiles().keySet()) {
@@ -678,7 +680,9 @@ public class DefaultGenerator extends AbstractGenerator implements Generator {
                 if (!of.isDirectory()) {
                     of.mkdirs();
                 }
-                String outputFilename = outputFolder + File.separator + support.destinationFilename.replace('/', File.separatorChar);
+                String outputFilename = new File(support.destinationFilename).isAbsolute() // split
+                        ? support.destinationFilename
+                        : outputFolder + File.separator + support.destinationFilename.replace('/', File.separatorChar);
                 if (!config.shouldOverwrite(outputFilename)) {
                     LOGGER.info("Skipped overwriting " + outputFilename);
                     continue;
@@ -797,16 +801,13 @@ public class DefaultGenerator extends AbstractGenerator implements Generator {
     }
 
     protected File writeInputStreamToFile(String filename, InputStream in, String templateFile) throws FileNotFoundException, IOException {
-        File outputFile = java.nio.file.Paths.get(filename).toFile();
         if (in != null) {
-            OutputStream out = new FileOutputStream(outputFile, false);
-            LOGGER.info("writing file " + outputFile);
-            IOUtils.copy(in, out);
-            out.close();
+            byte bytes[] = IOUtils.toByteArray(in);
+            return writeToFile(filename, bytes);
         } else {
             LOGGER.error("can't open '" + templateFile + "' for input; cannot write '" + filename + "'");
+            return null;
         }
-        return outputFile;
     }
 
     private Map<String, Object> buildSupportFileBundle(List<Object> allOperations, List<Object> allModels) {
@@ -909,7 +910,6 @@ public class DefaultGenerator extends AbstractGenerator implements Generator {
 
         return files;
     }
-
 
     protected File processTemplateToFile(Map<String, Object> templateData, String templateName, String outputFilename) throws IOException {
         String adjustedOutputFilename = outputFilename.replaceAll("//", "/").replace('/', File.separatorChar);
@@ -1059,7 +1059,6 @@ public class DefaultGenerator extends AbstractGenerator implements Generator {
         return parameter.getName() + ":" + parameter.getIn();
     }
 
-
     private Map<String, Object> processOperations(CodegenConfig config, String tag, List<CodegenOperation> ops, List<Object> allModels) {
         Map<String, Object> operations = new HashMap<String, Object>();
         Map<String, Object> objs = new HashMap<String, Object>();
@@ -1125,7 +1124,6 @@ public class DefaultGenerator extends AbstractGenerator implements Generator {
         return operations;
     }
 
-
     private Map<String, Object> processModels(CodegenConfig config, Map<String, Schema> definitions) {
         Map<String, Object> objs = new HashMap<String, Object>();
         objs.put("package", config.modelPackage());
@@ -1178,14 +1176,75 @@ public class DefaultGenerator extends AbstractGenerator implements Generator {
         }
         final Map<String, SecurityScheme> authMethods = new HashMap<>();
         for (SecurityRequirement requirement : securities) {
-            for (String key : requirement.keySet()) {
+            for (Map.Entry<String, List<String>> entry : requirement.entrySet()) {
+                final String key = entry.getKey();
                 SecurityScheme securityScheme = securitySchemes.get(key);
                 if (securityScheme != null) {
-                    authMethods.put(key, securityScheme);
+
+                    if (securityScheme.getType().equals(SecurityScheme.Type.OAUTH2)) {
+                        OAuthFlows oautUpdatedFlows = new OAuthFlows();
+                        oautUpdatedFlows.extensions(securityScheme.getFlows().getExtensions());
+
+                        SecurityScheme oauthUpdatedScheme = new SecurityScheme()
+                                .type(securityScheme.getType())
+                                .description(securityScheme.getDescription())
+                                .name(securityScheme.getName())
+                                .$ref(securityScheme.get$ref())
+                                .in(securityScheme.getIn())
+                                .scheme(securityScheme.getScheme())
+                                .bearerFormat(securityScheme.getBearerFormat())
+                                .openIdConnectUrl(securityScheme.getOpenIdConnectUrl())
+                                .extensions(securityScheme.getExtensions())
+                                .flows(oautUpdatedFlows);
+
+                        // Ensure inserted AuthMethod only contains scopes of actual operation, and not all of them defined in the Security Component
+                        // have to iterate through and create new SecurityScheme objects with the scopes 'fixed/updated'
+                        final OAuthFlows securitySchemeFlows = securityScheme.getFlows();
+
+
+                        if (securitySchemeFlows.getAuthorizationCode() != null) {
+                            OAuthFlow updatedFlow = cloneOAuthFlow(securitySchemeFlows.getAuthorizationCode(), entry.getValue());
+
+                            oautUpdatedFlows.setAuthorizationCode(updatedFlow);
+                        }
+                        if (securitySchemeFlows.getImplicit() != null) {
+                            OAuthFlow updatedFlow = cloneOAuthFlow(securitySchemeFlows.getImplicit(), entry.getValue());
+
+                            oautUpdatedFlows.setImplicit(updatedFlow);
+                        }
+                        if (securitySchemeFlows.getPassword() != null) {
+                            OAuthFlow updatedFlow = cloneOAuthFlow(securitySchemeFlows.getPassword(), entry.getValue());
+
+                            oautUpdatedFlows.setPassword(updatedFlow);
+                        }
+                        if (securitySchemeFlows.getClientCredentials() != null) {
+                            OAuthFlow updatedFlow = cloneOAuthFlow(securitySchemeFlows.getClientCredentials(), entry.getValue());
+
+                            oautUpdatedFlows.setClientCredentials(updatedFlow);
+                        }
+
+                        authMethods.put(key, oauthUpdatedScheme);
+                    } else {
+                        authMethods.put(key, securityScheme);
+                    }
                 }
             }
         }
         return authMethods;
+    }
+
+    private static OAuthFlow cloneOAuthFlow(OAuthFlow originFlow, List<String> operationScopes) {
+        Scopes newScopes = new Scopes();
+        for (String operationScope : operationScopes) {
+            newScopes.put(operationScope, originFlow.getScopes().get(operationScope));
+        }
+
+        return new OAuthFlow()
+                .authorizationUrl(originFlow.getAuthorizationUrl())
+                .tokenUrl(originFlow.getTokenUrl())
+                .refreshUrl(originFlow.getRefreshUrl())
+                .extensions(originFlow.getExtensions())
+                .scopes(newScopes);
     }
 
     private boolean hasOAuthMethods(List<CodegenSecurity> authMethods) {

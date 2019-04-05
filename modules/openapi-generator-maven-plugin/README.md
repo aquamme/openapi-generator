@@ -43,7 +43,7 @@ mvn clean compile
 - `validateSpec` - Whether or not to validate the input spec prior to generation. Invalid specifications will result in an error.
 - `language` - target generation language (deprecated, replaced by `generatorName` as values here don't represent only 'language' any longer)
 - `generatorName` - target generator name
-- `output` - target output path (default is `${project.build.directory}/generated-sources/swagger`. Can also be set globally through the `openapi.generator.maven.plugin.output` property)
+- `output` - target output path (default is `${project.build.directory}/generated-sources/openapi`. Can also be set globally through the `openapi.generator.maven.plugin.output` property)
 - `templateDirectory` - directory with mustache templates
 - `addCompileSourceRoot` - add the output directory to the project as a source root (`true` by default)
 - `modelPackage` - the package to use for generated model objects/classes
@@ -51,7 +51,7 @@ mvn clean compile
 - `invokerPackage` - the package to use for the generated invoker objects
 - `modelNamePrefix` and `modelNameSuffix` - Sets the pre- or suffix for model classes and enums
 - `withXml` - enable XML annotations inside the generated models and API (only works with Java `language` and libraries that provide support for JSON and XML)
-- `configOptions` - a map of language-specific parameters. To show a full list of generator-specified parameters (options), please use `configHelp` (explained below)
+- `configOptions` - a map of language-specific parameters. To show a full list of generator-specified parameters (options), please use `configHelp` (explained below) or refer to [generators docs](../../docs/generators.md)
 - `configHelp` - dumps the configuration help for the specified library (generates no sources)
 - `ignoreFileOverride` - specifies the full path to a `.openapi-generator-ignore` used for pattern based overrides of generated outputs
 - `removeOperationIdPrefix` - remove operationId prefix (e.g. user_getName => getName)
@@ -70,7 +70,8 @@ mvn clean compile
 - `supportingFilesToGenerate` - A comma separated list of supporting files to generate.  All files is the default.
 - `skip` - skip code generation (`false` by default. Can also be set globally through the `codegen.skip` property)
 - `verbose` - verbose mode (`false` by default)
-- `gitUserId` and `gitRepoId` - git infos of the project
+- `groupId`, `artifactId` and `artifactVersion`  - sets project information in generated pom.xml/build.gradle or other build script. Language-specific conversions occur in non-jvm generators
+- `gitUserId` and `gitRepoId` - sets git information of the project
 - `auth` - adds authorization headers when fetching the OpenAPI definitions remotely. Pass in a URL-encoded string of `name:header` with a comma separating multiple values
 - `configurationFile` - Path to separate json configuration file. File content should be in a json format {"optionKey":"optionValue", "optionKey1":"optionValue1"...} Supported options can be different for each language. Run `config-help -g {generator name}` command for language specific config options
 - `skipOverwrite` - Specifies if the existing files should be overwritten during the generation. (`false` by default)

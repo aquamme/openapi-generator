@@ -72,8 +72,8 @@ SYNOPSIS
 
 OPTIONS
         -f <output format>, --format <output format>
-            Write output files in the desired format. Options are 'text' and
-            'markdown'. Default is 'text'.
+            Write output files in the desired format. Options are 'text',
+            'markdown' or 'yamlsample'. Default is 'text'.
 
         -g <generator name>, --generator-name <generator name>
             generator to get config help for
@@ -426,6 +426,8 @@ To pass more than one generator property, these can be combined via comma:
 --additional-properties=key1=value1,key2=value2
 ```
 
+For the full list of generator-specified parameters, refer to [generators docs]((./generators.md))
+
 #### Type Mappings and Import Mappings
 
 Most generators allow for types bound to the OpenAPI Specification's types to be remapped to a user's desired types. Not _all_ type mappings can be reassigned, as some generators define mappings which are tightly coupled to the built-in templates.
@@ -480,7 +482,7 @@ NOTE: `import-mappings` is assigned a key-value pair in this example, but multip
 
 #### Configuration File
 
-Rather than passing generator options in a CSV of `--additional-properties`, you may also provide the settings via JSON file.
+Rather than passing generator options in a CSV of `--additional-properties`, you may also provide the settings via JSON file or YAML file.
 
 For example, one of our typescript samples has the following configuration file:
 
@@ -499,4 +501,22 @@ These settings can be passed via `-c filename`. Here, we've saved the above as `
 ```bash
 openapi-generator generate -i petstore.yaml -g typescript-fetch -o out \
     -c config.json
+```
+
+Same configuration file can be passed into YAML format having following equivalent content:
+
+```yaml
+npmName: "@swagger/typescript-fetch-petstore"
+npmVersion: "1.0.0"
+npmRepository: "https://skimdb.npmjs.com/registry"
+snapshot: false
+supportsES6: true
+```
+
+The settings are passed exactly the same as for `config.json`. The most important part is the file extension. Supported values are `yml` or `yaml`. 
+The name of the file should be `config.yml` or `config.yaml` (in our example it will be `config.yaml`.
+
+```bash
+openapi-generator generate -i petstore.yaml -g typescript-fetch -o out \
+    -c config.yaml
 ```
